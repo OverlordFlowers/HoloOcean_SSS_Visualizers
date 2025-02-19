@@ -4,8 +4,24 @@ import numpy as np
 import math
 import time
 import collections
+from datetime import datetime
+import os
+import csv
 
-from waypoint_gen import *
+from helper_functions.sonarmap_gen import *
+from helper_functions.waypoint_gen import *
+from helper_functions.waypoint_optimization import *
+from helper_functions.occupancy_grid_processing import *
+
+timestamp = datetime.today().strftime("%Y%m%d%H%M%S")
+
+Az = 170
+minR = 0.5
+maxR = 10
+binsR = 2000
+
+z_const = -50
+map_size = 100
 
 config = {
       "name": "test",
@@ -33,10 +49,10 @@ config = {
                      "socket": "SonarSocket",
                      "Hz": 30,
                      "configuration": {
-                           "RangeBins": 2000,
-                           "Azimuth": 170,
-                           "RangeMin": 0.5,
-                           "RangeMax": 40,
+                           "RangeBins": binsR,
+                           "Azimuth": Az,
+                           "RangeMin": minR,
+                           "RangeMax": maxR,
                            "AddSigma": 0.05,
                            "MultSigma": 0.05,
                            "InitOctreeRange": 10,
@@ -57,55 +73,87 @@ config = {
    }
 
 
-Az = 170
-minR = 0.5
-maxR = 40
-binsR = 2000
 
-t = np.arange(0,1600)
-r = np.linspace(-maxR, maxR, binsR)
-R, T = np.meshgrid(r, t)
-data = np.zeros_like(R)
+marker = None
 
-command = [0, 0, 0, 0, 0, 0]
-loc = [0, 0, -50]
-rot = [0, 0, 90]
-tick = 0
+m1_waypoints = [[-20, 0, z_const],
+             [10, 0, z_const],
+             [10, -10, z_const],
+             [-30, -10, z_const],
+             [-30, 50, z_const],
+             [20, 50, z_const],
+             [20, -20, z_const],
+             [-30, 30, z_const]]
 
-f = open("test_metadata.csv", "w")
-f.write("min_range,max_range,num_bins,azimuth")
-f.write("\n")
-f.write(f"{minR}, {maxR}, {binsR}, {Az}")
-f.close()
+# Create parent folder if it doesn't exist
+directory_name = "outputs"
+try:
+    os.mkdir(directory_name)
+    print(f"Directory '{directory_name}' created successfully.")
+except FileExistsError:
+    print(f"Directory '{directory_name}' already exists.")
+except PermissionError:
+    print(f"Permission denied: Unable to create '{directory_name}'.")
+except Exception as e:
+    print(f"An error occurred: {e}")
 
-f = open("test.csv", "w")
-f.write("tick,x,y,z,roll,pitch,yaw,")
+if (marker is None):
+   directory_name = "outputs/"+timestamp
+else:
+   directory_name = "outputs/"+marker
 
-for i in range(binsR-1):
-    f.write(f"bin_{i},")
-f.write(f"bin_{binsR-1}")
-f.write("\n")
+try:
+    os.mkdir(directory_name)
+    print(f"Directory '{directory_name}' created successfully.")
+except FileExistsError:
+    print(f"Directory '{directory_name}' already exists.")
+except PermissionError:
+    print(f"Permission denied: Unable to create '{directory_name}'.")
+except Exception as e:
+    print(f"An error occurred: {e}")
 
-z_const = -50
+directory = directory_name+"/"
 
-pts = generate_waypoints_line([-20, 0, z_const], [10, 0, z_const], 0.05)
-pts2 = generate_waypoints_line([10, 0, z_const], [10, -10, z_const], 0.05)
-pts3 = generate_waypoints_line([10, -10, z_const], [-30, -10, z_const], 0.05)
-pts4 = generate_waypoints_line([-30, -10, z_const], [-30, 0, z_const], 0.05)
-pts5 = generate_waypoints_line([-30, 0, z_const], [-30, 50, z_const], 0.05)
-pts6 = generate_waypoints_line([-30, 50, z_const], [20, 50, z_const], 0.05)
-pts7 = generate_waypoints_line([20, 50, z_const], [20, -20, z_const], 0.05)
-pts.extend(pts2)
-pts.extend(pts3)
-pts.extend(pts4)
-pts.extend(pts5)
-pts.extend(pts6)
-pts.extend(pts7)
+def write_metadata(directory, minR, maxR, binsR, Az, mapsize, marker=None):
+   if marker is None:
+      f = open(directory+"metadata.csv", "w")
+   else:
+      f = open(marker+"_"+timestamp+"metadata.csv", "w")
 
-pts = collections.deque(pts)
+   f.write("min_range,max_range,num_bins,azimuth, mapsize")
+   f.write("\n")
+   f.write(f"{minR}, {maxR}, {binsR}, {Az}, {mapsize}")
+   f.close()
+
+write_metadata(directory, minR, maxR, binsR, Az, map_size)
+
+with open(directory+"waypoints.csv", "w", newline="") as csvfile:
+    writer = csv.writer(csvfile)
+    writer.writerow(["x", "y", "z"])
+    writer.writerows(m1_waypoints)
 
 with holoocean.make(scenario_cfg=config, start_world=False) as env:
    
+   pts = generate_waypoints(m1_waypoints)
+   pts_array = np.array(pts)
+   pts = collections.deque(pts)
+
+   tick = 0
+
+   t = np.arange(0,1600)
+   r = np.linspace(-maxR, maxR, binsR)
+   R, T = np.meshgrid(r, t)
+   data = np.zeros_like(R)
+
+   f = open(directory+"scan.csv", "w")
+   f.write("tick,x,y,z,roll,pitch,yaw,")
+
+   for i in range(binsR-1):
+      f.write(f"bin_{i},")
+   f.write(f"bin_{binsR-1}")
+   f.write("\n")
+
+   print("Beginning Simulation")
    while True:
       state = env.tick()
 
@@ -116,7 +164,6 @@ with holoocean.make(scenario_cfg=config, start_world=False) as env:
       loc, rot = pts.popleft()
       env.agents['auv0'].teleport(loc, rot)
 
-      #print(env.agents['auv0'])
       if 'SidescanSonar' in state:
          data = np.roll(data, 1, axis=0)
          data[0] = state['SidescanSonar']
@@ -137,3 +184,12 @@ with holoocean.make(scenario_cfg=config, start_world=False) as env:
 
 f.close()
 print("Job's done!")
+
+display_sss_map(directory, save_npy=True, show_plots=True)
+display_sss_time_map(directory, save_npy=True, show_plots=True)
+processOccupancyGrid(directory)
+
+
+      
+
+
