@@ -122,6 +122,7 @@ def display_sss_map(directory, map_size=100, save_npy=False, show_plots=False):
 
       sc = ax.scatter(x_pos, y_pos, c=times, cmap='viridis', s=50, edgecolor='k')
       fig.colorbar(sc, ax=ax, label="Scan Number")
+      plt.savefig(directory+"occupancy_grid_wps")
       end_time = time.time()
       print(f"Time to map path: {end_time - start_time} seconds")
 

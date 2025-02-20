@@ -39,6 +39,8 @@ def processOccupancyGrid(directory):
     occupancy_grid *= 255
     occupancy_grid = occupancy_grid.astype(np.uint8)
     masked_image = cv2.bitwise_and(occupancy_grid, occupancy_grid, mask=erosion)
+    masked_image = cv2.flip(masked_image, 0)
+
     plt.imshow(masked_image, cmap='copper')
     plt.title("Masked Image")
     plt.show()
@@ -49,8 +51,6 @@ def processOccupancyGrid(directory):
     empty_image = np.zeros((height, width, 3), dtype=np.uint8)
     countoured_image = cv2.drawContours(empty_image, contours, -1, (0, 255, 0), 2)
 
-
-
     centroids = []
     for cnt in contours:
         M = cv2.moments(cnt)
@@ -59,16 +59,11 @@ def processOccupancyGrid(directory):
             cy = int(M["m01"] / M["m00"])
             centroids.append((cx, cy))
 
-
-
     # Find the rotated rectangles and ellipses for each contour
     minRect = [None]*len(contours)
-    minEllipse = [None]*len(contours)
     for i, c in enumerate(contours):
         minRect[i] = cv2.minAreaRect(c)
-        if c.shape[0] > 5:
-            minEllipse[i] = cv2.fitEllipse(c)
-    # Draw contours + rotated rects + ellipses
+
     
     drawing = np.zeros((countoured_image.shape[0], countoured_image.shape[1], 3), dtype=np.uint8)
     
@@ -81,6 +76,7 @@ def processOccupancyGrid(directory):
     for i, c in enumerate(contours):
         color = (rng.randint(0,256), rng.randint(0,256), rng.randint(0,256))
         # contour
+
         cv2.drawContours(drawing, contours, i, color)
         
         # rotated rectangle
@@ -88,13 +84,16 @@ def processOccupancyGrid(directory):
         box = np.intp(box) #np.intp: Integer used for indexing (same as C ssize_t; normally either int32 or int64)
         print(box)
         cv2.drawContours(drawing, [box], 0, color)
+        cv2.putText(drawing, str(i), (box[0,0], box[0,1]), cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 3)
         box =  (box * resolution) - (map_size/2)
 
         f.write("\n")
-        f.write(f"{i},{box[0,0]},{box[0,1]},{box[1,0]},{box[1,1]},{box[2,0]},{box[2,1]},{box[3,0]},{box[3,1]}")
+        f.write(f"{i},{box[0,0]},{-box[0,1]},{box[1,0]},{-box[1,1]},{box[2,0]},{-box[2,1]},{box[3,0]},{-box[3,1]}")
 
     f.close()
     print(drawing.shape)
+    
+    cv2.imwrite(directory+"detected_objects.png",drawing)
     cv2.imshow('Contours', drawing)
 
     countoured_image *= 255
