@@ -61,7 +61,7 @@ def processOccupancyGrid(directory):
 
 
 
-        # Find the rotated rectangles and ellipses for each contour
+    # Find the rotated rectangles and ellipses for each contour
     minRect = [None]*len(contours)
     minEllipse = [None]*len(contours)
     for i, c in enumerate(contours):
@@ -72,6 +72,9 @@ def processOccupancyGrid(directory):
     
     drawing = np.zeros((countoured_image.shape[0], countoured_image.shape[1], 3), dtype=np.uint8)
     
+    resolution = 0.1
+    map_size = 100
+
     f = open(directory+"bounding_boxes.csv", "w")
     f.write("obj,x0,y0,x1,y1,x2,y2,x3,y3")
 
@@ -79,28 +82,20 @@ def processOccupancyGrid(directory):
         color = (rng.randint(0,256), rng.randint(0,256), rng.randint(0,256))
         # contour
         cv2.drawContours(drawing, contours, i, color)
-        # ellipse
-        if c.shape[0] > 5:
-            cv2.ellipse(drawing, minEllipse[i], color, 2)
+        
         # rotated rectangle
         box = cv2.boxPoints(minRect[i])
         box = np.intp(box) #np.intp: Integer used for indexing (same as C ssize_t; normally either int32 or int64)
         print(box)
         cv2.drawContours(drawing, [box], 0, color)
+        box =  (box * resolution) - (map_size/2)
 
         f.write("\n")
         f.write(f"{i},{box[0,0]},{box[0,1]},{box[1,0]},{box[1,1]},{box[2,0]},{box[2,1]},{box[3,0]},{box[3,1]}")
+
     f.close()
-
-
-
-
+    print(drawing.shape)
     cv2.imshow('Contours', drawing)
-
-    plt.figure(figsize=(6, 6))
-    plt.imshow(countoured_image, cmap='copper')
-    plt.title("Detected Objects (Contours)")
-    plt.show()
 
     countoured_image *= 255
     countoured_image = countoured_image.astype(np.uint8)
