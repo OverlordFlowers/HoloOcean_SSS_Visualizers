@@ -39,10 +39,12 @@ def objects_seen_by_waypoint(auv_pose, object_bboxes, sonar_range):
 
         if is_detected:
             detected_objects.append(i)
+    if (detected_objects == []):
+        detected_objects = None
 
     return detected_objects
 
-def checkBoundingBoxCollision(directory):
+def checkBoundingBoxCollision(directory, write_all=False):
     metadata = ((pd.read_csv(directory+"metadata.csv")).to_numpy())[0]
 
     scans = pd.read_csv(directory+"scan.csv").to_numpy()
@@ -66,13 +68,15 @@ def checkBoundingBoxCollision(directory):
     f = open(directory+"wp_detected_objects.csv", "w")
     f.write("x,y,z,yaw,objects_detected")
     for i in range(len(x)):
-        detected = objects_seen_by_waypoint([x[i], y[i], z[i], yaw[i]], bounding_boxes, 10.0)
-        f.write("\n")
-        f.write(f"{x[i]},{y[i]},{z[i]},{yaw[i]},{str(detected).replace(",", " ")}")
-    
+        
+        detected = objects_seen_by_waypoint([x[i], y[i], z[i], yaw[i]], bounding_boxes, max_range)
 
+        if (write_all or detected is not None):
+            f.write("\n")
+            f.write(f"{x[i]},{y[i]},{z[i]},{yaw[i]},{str(detected).replace(',', ' ')}")
 
+    f.close()
 
-checkBoundingBoxCollision("outputs/20250219154912/")
+#checkBoundingBoxCollision("outputs/20250219154912/")
 
 

@@ -14,7 +14,6 @@ def generate_waypoints_line(start, end, step_size):
     dy = end[1] - start[1]
     dz = end[2] - start[2]
     distance = math.sqrt(dx**2 + dy**2 + dz**2)
-    
 
     yaw = np.rad2deg(math.atan2(dy, dx))
 

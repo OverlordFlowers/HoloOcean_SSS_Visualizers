@@ -87,7 +87,7 @@ def generate_side_scan_map(directory, min_range, max_range, num_bins, scans, map
 
     return occupancy_grid
 
-def display_sss_map(directory, map_size=100, save_npy=False, show_plots=False):
+def display_sss_map(directory, map_size=100, resolution=0.1, save_npy=False, show_plots=False):
     total_start_time = time.time()
     start_time = time.time()
     min_range, max_range, num_bins, scans = load_sonar_data(directory)
@@ -95,7 +95,7 @@ def display_sss_map(directory, map_size=100, save_npy=False, show_plots=False):
     print(f"Time to load sonar data: {end_time - start_time} seconds")
 
     start_time = time.time()
-    occupancy_grid = generate_side_scan_map(directory, min_range, max_range, num_bins, scans, save_npy=save_npy)
+    occupancy_grid = generate_side_scan_map(directory, min_range, max_range, num_bins, scans, save_npy=save_npy, resolution=resolution)
     end_time = time.time()
     print(f"Time to generate map: {end_time - start_time} seconds")
 
@@ -103,25 +103,30 @@ def display_sss_map(directory, map_size=100, save_npy=False, show_plots=False):
     map_size = 100
 
     if (show_plots):
+      
       fig, ax = plt.subplots(figsize=(8, 8))
 
-      cax = ax.imshow(occupancy_grid, origin='lower', cmap='gray',
+
+      cax = ax.imshow(occupancy_grid, origin='lower', cmap='copper',
                       extent=[-map_size/2, map_size/2, -map_size/2, map_size/2])
       
-      plt.savefig(directory+"occupancy_grid")
+      ax.set_title("Comprehensive Occupancy Map", fontsize=28)
+      ax.set_xlabel("x (meters)", fontsize=24)
+      ax.set_ylabel("y (meters)", fontsize=24)
+      ax.tick_params(axis='both', labelsize=20)
+      
+      plt.savefig(directory+"occupancy_grid.svg", format='svg')
 
-      ax.set_title("SSS Map")
-      ax.set_xlabel("X (meters)")
-      ax.set_ylabel("Y (meters)")
-      fig.colorbar(cax, ax=ax, label="Sonar Return Intensity")
 
-      x_pos = scans[0::10,1]
-      y_pos = scans[0::10,2]
+      #fig.colorbar(cax, ax=ax, label="Sonar Return Intensity")
+
+      x_pos = scans[0::20,1]
+      y_pos = scans[0::20,2]
 
       times = np.arange(x_pos.shape[0])
 
       sc = ax.scatter(x_pos, y_pos, c=times, cmap='viridis', s=50, edgecolor='k')
-      fig.colorbar(sc, ax=ax, label="Scan Number")
+      #fig.colorbar(sc, ax=ax, label="Scan Number")
       plt.savefig(directory+"occupancy_grid_wps")
       end_time = time.time()
       print(f"Time to map path: {end_time - start_time} seconds")
