@@ -57,9 +57,9 @@ config = {
                            "RangeMax": maxR,
                            "AddSigma": 0.05,
                            "MultSigma": 0.05,
-                           "InitOctreeRange": 10
-                           #"ViewRegion": True,
-                           #"ViewOctree": -1
+                           "InitOctreeRange": 10,
+                           "ViewRegion": True,
+                           "ViewOctree": -1
 
                      }
                   },
@@ -74,7 +74,7 @@ config = {
       ]
    }
 
-marker = 't1'
+marker = 'ex'
 
 
 m1_waypoints = [[-20, 0, z_const],
@@ -183,14 +183,14 @@ with open(directory+"waypoints.csv", "w", newline="") as csvfile:
     writer.writerow(["x", "y", "z"])
     writer.writerows(m1_waypoints)
 '''
-'''
+
 df = pd.read_csv("optimized_waypoint.csv")
 pts = df.to_numpy()[:,:]
 print(pts)
-'''
+
 with holoocean.make(scenario_cfg=config, start_world=False) as env:
    
-   pts = generate_waypoints(comprehensive)
+   #pts = generate_waypoints(comprehensive)
    pts_array = np.array(pts)
    pts = collections.deque(pts)
 
@@ -211,33 +211,41 @@ with holoocean.make(scenario_cfg=config, start_world=False) as env:
 
    print("Beginning Simulation")
    while True:
+      print(tick)
       state = env.tick()
-      '''
+      
       if not pts:
          break
-      '''
-      # Get the next waypoint from the queue
-      loc = pts.popleft()
-      #loc[1] = loc[1]
-      #env.agents['auv0'].teleport(loc[0:3], [0, 0, loc[3]])
-      #env.agents['auv0'].teleport(loc[0], loc[1])
-
-      if 'SidescanSonar' in state:
-         data = np.roll(data, 1, axis=0)
-         data[0] = state['SidescanSonar']
-
-      if 'DynamicsSensor' in state:
-         dynamics = state['DynamicsSensor']
-         
-         curr_pos = dynamics[6:9]
-         curr_rpy = dynamics[15:18]
-         print(f"{curr_pos}, {curr_rpy}")
       
-      sonar_scan = ', '.join([str(x) for x in data[0]])
-      curr_scan = f"{tick}, {curr_pos[0]}, {curr_pos[1]}, {curr_pos[2]}, {curr_rpy[0]}, {curr_rpy[1]}, {curr_rpy[2]}, "
-      curr_scan = curr_scan+sonar_scan
-      f.write(curr_scan)
-      f.write("\n")
+      # Get the next waypoint from the queue
+      past_x = 0
+      past_y = 0
+      if (tick > 10000):
+         loc = pts.popleft()
+         loc[1] = -loc[1]
+         past_x = loc[0]
+         past_y = loc[1]
+         
+            
+         env.agents['auv0'].teleport(loc[0:3], [0, 0, loc[3]])
+         #env.agents['auv0'].teleport(loc[0], loc[1])
+
+         if 'SidescanSonar' in state:
+            data = np.roll(data, 1, axis=0)
+            data[0] = state['SidescanSonar']
+
+         if 'DynamicsSensor' in state:
+            dynamics = state['DynamicsSensor']
+            
+            curr_pos = dynamics[6:9]
+            curr_rpy = dynamics[15:18]
+            print(f"{curr_pos}, {curr_rpy}")
+         
+         sonar_scan = ', '.join([str(x) for x in data[0]])
+         curr_scan = f"{tick}, {curr_pos[0]}, {curr_pos[1]}, {curr_pos[2]}, {curr_rpy[0]}, {curr_rpy[1]}, {curr_rpy[2]}, "
+         curr_scan = curr_scan+sonar_scan
+         f.write(curr_scan)
+         f.write("\n")
       tick = tick + 1
       
 

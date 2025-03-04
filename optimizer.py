@@ -26,55 +26,34 @@ resolution = float(metadata['resolution'].iloc[0])
 
 # compile all the scans together into one
 # generate a total occupancy map
-occ_grid = compileOccupancy(marked_directories, map_size, resolution, show_plot=True)
+occ_grid = compileOccupancy(marked_directories, map_size, resolution, show_plot=False)
 
 # get the bounding boxes from the total occupancy map
-bounding_boxes = getBoundingBoxRegions(occ_grid, map_size, resolution, show_drawing=True)
+bounding_boxes = getBoundingBoxRegions(occ_grid, map_size, resolution, show_drawing=False)
 
 # get new occupancy map using the bounding boxes (rasterization), rescale to grid points instead of float coordinate values
-rasterized_regions = rasterizeBoundingBoxRegions(bounding_boxes, occ_grid, resolution, map_size, show_plot=True)
+rasterized_regions = rasterizeBoundingBoxRegions(bounding_boxes, occ_grid, resolution, map_size, show_plot=False)
 
 # get all scans from the missions
 scans = getScans(marked_directories)
 
-# see which scans see bounding boxes, save these waypoints
 waypoints, objects_seen = getScansDetected(scans, max_range, bounding_boxes, get_all=False)
 all_waypoints = [wp for m in waypoints for wp in m]
-print(all_waypoints)
+#print(all_waypoints)
 scaled_waypoints = rescale_waypoints(all_waypoints, map_size, resolution)
 
 coverage_grid = compute_sidescan_coverage(scaled_waypoints, rasterized_regions, max_range, resolution)
 
 
-plt.imshow(coverage_grid, cmap="gray", origin="lower")
-plt.title("Side-Scan Sonar Coverage Map")
-plt.xlabel("X (Grid Cells)")
-plt.ylabel("Y (Grid Cells)")
-plt.grid(True, linestyle="--", linewidth=0.5)
-plt.show()
 
-
-#Solve TSP with heuristic approach
 start_time = time.time()
 def optimize_waypoints_smooth(waypoints, coverage_grid, alpha=50, beta=0.0):
-    """
-    Optimizes waypoints to maximize unique coverage while minimizing travel distance and enforcing smooth paths.
-
-    Parameters:
-    - waypoints: List of (x, y, z, yaw) coordinates in grid space.
-    - coverage_grid: 2D numpy array representing sonar coverage.
-    - alpha: Weight for travel distance penalty.
-    - beta: Weight for smoothness penalty (yaw changes).
-
-    Returns:
-    - Optimized waypoint sequence.
-    """
     n = len(waypoints)
     dist_matrix = cdist([(wp[0], wp[1]) for wp in waypoints], [(wp[0], wp[1]) for wp in waypoints])
     unvisited = set(range(n))
-    path = [0]  # Start at the first waypoint
+    path = [0] 
     unvisited.remove(0)
-    current_yaw = waypoints[0][3]  # Initial yaw (heading)
+    current_yaw = waypoints[0][3]  
     
     while unvisited:
         last = path[-1]
@@ -85,14 +64,11 @@ def optimize_waypoints_smooth(waypoints, coverage_grid, alpha=50, beta=0.0):
             travel_cost = dist_matrix[last, candidate]
             x, y, z, yaw = waypoints[candidate]
             
-            # Compute new coverage by this waypoint
             new_coverage = np.sum(coverage_grid[max(0, y - 1):min(y + 2, coverage_grid.shape[0]),
                                                 max(0, x - 1):min(x + 2, coverage_grid.shape[1])])
 
-            # Compute smoothness penalty based on yaw difference
             yaw_change_penalty = beta * abs(yaw - current_yaw)
 
-            # Score function: maximize coverage, minimize travel distance, enforce smooth path
             score = new_coverage - alpha * travel_cost - yaw_change_penalty
 
             if score > best_score:
@@ -109,16 +85,17 @@ def optimize_waypoints_smooth(waypoints, coverage_grid, alpha=50, beta=0.0):
     return [waypoints[i] for i in path]
 
 def interpolate_waypoints(waypoints, max_distance):
-    interpolated_waypoints = [waypoints[0]]  
+    interpolated_waypoints = [waypoints[0]]  # Start with the first waypoint
 
     for i in range(len(waypoints) - 1):
         x1, y1, z1, yaw1 = waypoints[i]
         x2, y2, z2, yaw2 = waypoints[i + 1]
 
+        # Compute Euclidean distance
         dist = np.linalg.norm([x2 - x1, y2 - y1, z2 - z1])
+        print(dist)
 
         if dist > max_distance:
-
             num_points = int(np.ceil(dist / max_distance))
 
             x_interp = np.linspace(x1, x2, num_points + 1)
@@ -127,20 +104,51 @@ def interpolate_waypoints(waypoints, max_distance):
             yaw_interp = np.linspace(yaw1, yaw2, num_points + 1)
 
             for j in range(1, num_points):
-                interpolated_waypoints.append((x_interp[j], y_interp[j], z_interp[j], yaw_interp[j]))
+                x_prev, y_prev = x_interp[j - 1], y_interp[j - 1]
+                x_next, y_next = x_interp[j + 1] if j + 1 < num_points else x2, y_interp[j + 1] if j + 1 < num_points else y2
 
-        interpolated_waypoints.append((x2, y2, z2, yaw2))  # Add original point
+                yaw_new = np.degrees(np.arctan2(y_next - y_prev, x_next - x_prev))
+                print(num_points)
+                interpolated_waypoints.append([x_interp[j], y_interp[j], z_interp[j], yaw_new])
 
-    return interpolated_waypoints
+        interpolated_waypoints.append([x2, y2, z2, yaw2])  
+    
+    adjusted_waypoints = interpolated_waypoints.copy()
 
+    # Not pretty but I needed to make a second pass to make sure the yaws were correct
+    for i in range(len(adjusted_waypoints) - 1):
+        x1, y1, z1, _ = adjusted_waypoints[i]
+        x2, y2, z2, _ = adjusted_waypoints[i + 1]
+        y1 = -y1
+        y2 = -y2
 
+        delta_x = x2 - x1
+        delta_y = y2 - y1
+
+        if delta_x == 0 and delta_y == 0:
+            yaw_corrected = adjusted_waypoints[i - 1][3] if i > 0 else 0  
+        elif delta_x == 0:  
+            yaw_corrected = 90.0 if delta_y > 0 else -90.0
+        elif delta_y == 0:  
+            yaw_corrected = 0.0 if delta_x > 0 else 180.0  
+        else:
+            yaw_corrected = np.degrees(np.arctan2(delta_y, delta_x))
+
+        # Update the yaw in the waypoint list
+        print(yaw_corrected)
+        adjusted_waypoints[i] = (x1, -y1, z1, yaw_corrected)
+    
+
+    return adjusted_waypoints
+
+# **Run the optimized smooth waypoint planner**
 #smoothed_waypoints = scaled_waypoints
 optimized_smooth_waypoints = optimize_waypoints_smooth(scaled_waypoints, coverage_grid)
 end_time = time.time()
 
-max_interpolation_distance = 10
+max_interpolation_distance = 1
 smoothed_waypoints = interpolate_waypoints(optimized_smooth_waypoints, max_interpolation_distance)
-smoothed_waypoints = rescale_waypoints(all_waypoints, map_size, resolution)
+
 
 f = open("optimized_waypoint.csv", "w")
 f.write("x,y,z,yaw")
@@ -151,9 +159,10 @@ for p in smoothed_waypoints:
 
 print(f"Time to solve: {end_time - start_time}")
 
-print(optimized_smooth_waypoints)
+#print(optimized_smooth_waypoints)
 
 import matplotlib.cm as cm
+
 
 optimized_x = [int(wp[0]) for wp in smoothed_waypoints]
 optimized_y = [int(wp[1]) for wp in smoothed_waypoints]
@@ -174,15 +183,13 @@ colors = cm.viridis(np.linspace(0, 1, num_waypoints))
 for i, (x, y) in enumerate(zip(filtered_x, filtered_y)):
     plt.scatter(x*resolution - map_size//2, -y*resolution+map_size//2, color=colors[i], marker="o", label=f"WP {i+1}" if i in [0, num_waypoints-1] else "_nolegend_")
 
-# Connect waypoints in order
 for i in range(num_waypoints - 1):
     plt.plot([optimized_x[i]*resolution - map_size//2, optimized_x[i+1]*resolution - map_size//2], [-optimized_y[i]*resolution + map_size//2, -optimized_y[i+1]*resolution + map_size//2], color=colors[i], linestyle="--")
 
-# Labels and legend
 plt.title("Optimized Mission Occupancy Map", fontsize=28)
 plt.xlabel("x (meters)", fontsize=24)
 plt.ylabel("y (meters)", fontsize=24)
-plt.tick_params(axis='both', labelsize=20)
+plt.tick_params(axis='both', labelsize=16)
 #plt.legend()
 plt.grid(True, linestyle="--", linewidth=0.5)
 #plt.colorbar(cm.ScalarMappable(cmap="viridis"), label="Waypoint Order")

@@ -7,17 +7,6 @@ import numpy as np
 from scipy.spatial.distance import cdist
 
 def compute_waypoint_coverage(waypoints, occupancy_grid, sonar_range):
-    """
-    Determines which pixels each waypoint covers in the rasterized occupancy grid.
-
-    Parameters:
-    - waypoints: List of (x, y) coordinates.
-    - occupancy_grid: 2D numpy array representing the rasterized map.
-    - sonar_range: Maximum sonar detection radius.
-
-    Returns:
-    - coverage: Dictionary {waypoint_index: set(covered pixels)}.
-    """
     coverage = {i: set() for i in range(len(waypoints))}
     grid_height, grid_width = occupancy_grid.shape
 
@@ -33,16 +22,6 @@ def compute_waypoint_coverage(waypoints, occupancy_grid, sonar_range):
     return coverage
 
 def merge_redundant_waypoints(waypoints, coverage):
-    """
-    Removes redundant waypoints that provide overlapping or minimal additional coverage.
-
-    Parameters:
-    - waypoints: List of (x, y) coordinates.
-    - coverage: Dictionary {waypoint_index: set(covered pixels)}.
-
-    Returns:
-    - Filtered waypoints and updated coverage.
-    """
     unique_waypoints = []
     unique_coverage = {}
     seen_coverages = set()
@@ -57,16 +36,6 @@ def merge_redundant_waypoints(waypoints, coverage):
     return unique_waypoints, unique_coverage
 
 def tsp_heuristic(waypoints, coverage):
-    """
-    Solves a modified TSP using a nearest-neighbor heuristic while maximizing coverage area.
-
-    Parameters:
-    - waypoints: List of (x, y) coordinates.
-    - coverage: Dictionary {waypoint_index: set(covered pixels)}.
-
-    Returns:
-    - Optimized waypoint sequence.
-    """
     n = len(waypoints)
     dist_matrix = cdist(waypoints, waypoints)
     unvisited = set(range(n))

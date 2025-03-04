@@ -107,21 +107,21 @@ def display_sss_map(directory, map_size=100, resolution=0.1, save_npy=False, sho
       fig, ax = plt.subplots(figsize=(8, 8))
 
 
-      cax = ax.imshow(occupancy_grid, origin='lower', cmap='copper',
+      cax = ax.imshow(occupancy_grid, origin='lower', cmap='gray',
                       extent=[-map_size/2, map_size/2, -map_size/2, map_size/2])
       
-      ax.set_title("Comprehensive Occupancy Map", fontsize=28)
-      ax.set_xlabel("x (meters)", fontsize=24)
-      ax.set_ylabel("y (meters)", fontsize=24)
-      ax.tick_params(axis='both', labelsize=20)
+      ax.set_title("Occupancy Map", fontsize=16)
+      ax.set_xlabel("x (meters)", fontsize=12)
+      ax.set_ylabel("y (meters)", fontsize=12)
+      ax.tick_params(axis='both', labelsize=10)
       
       plt.savefig(directory+"occupancy_grid.svg", format='svg')
 
 
       #fig.colorbar(cax, ax=ax, label="Sonar Return Intensity")
 
-      x_pos = scans[0::20,1]
-      y_pos = scans[0::20,2]
+      x_pos = scans[0::10,1]
+      y_pos = scans[0::10,2]
 
       times = np.arange(x_pos.shape[0])
 
